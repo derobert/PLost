@@ -64,7 +64,7 @@ int main(int argc, char *argv[]) {
 	// yeah, IPv4 support. Now, if only the server supported IPv4...
 	addrinfo hints;
 	hints.ai_flags = 0; 
-	hints.ai_family =	PF_UNSPEC;
+	hints.ai_family = PF_UNSPEC;
 	hints.ai_socktype = SOCK_DGRAM; 
 	hints.ai_protocol = 0;
 	hints.ai_addrlen = 0;
@@ -227,7 +227,15 @@ bool measure(int sock, uint64_t transid) {
 		}
 
 		// Wait for reply
-		int pollres = poll(&pollme, 1, (next-microtime())/1000);
+		unsigned long long cur_time = microtime();
+		unsigned long long delay;
+		if (cur_time > next) {
+			delay = 10;
+			std::clog << "Underflow; forcing delay to 10ms minimum instead of -"
+				      << (cur_time-next) << "us.\n";
+		} else
+			delay = (next-cur_time)/1000;
+		int pollres = poll(&pollme, 1, delay);
 		if (pollres == -1) {
 			perror("poll");
 			return false;
