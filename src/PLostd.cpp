@@ -6,12 +6,23 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <unistd.h>
+#include <time.h>
 
 #include <iostream>
+#include <map>
 
 void connection_loop(const int sock);
 void process_request(const char *const buffer, const int size,
 		const sockaddr *who, const socklen_t wholen, const int sock);
+void transaction_gc();
+
+struct transactionInfo {
+	transactionInfo() : count(0), last(time(NULL)) {}
+	unsigned int count;
+	time_t last;
+};
+typedef std::map<uint64_t, transactionInfo> transactionMap;
+transactionMap gTransactions;
 
 int main() {
 	int sock = socket(PF_INET6, SOCK_DGRAM, 0);
@@ -53,6 +64,7 @@ void connection_loop(const int sock) {
 		std::clog << "Message from " << addr_buffer << ": ";
 		process_request(buffer, size, (sockaddr *)&remote_addr,
 				remote_addr_len, sock);
+		transaction_gc();
 	}
 	
 	delete[] addr_buffer;
@@ -61,13 +73,22 @@ void connection_loop(const int sock) {
 
 void process_request(const char *const buffer, const int size,
 		const sockaddr *who, const socklen_t wholen, const int sock) {
-	if (size < 10) {
-		std::clog << "too small!\n";
+	if (size < 2) {
+		std::clog << "too small for even the version field!\n";
+		return;
+	}
+	const uint16_t version = ntohs(PLOST_VERSION(buffer));
+	if (version != PROTOCOL_VERSION_ZERO) {
+		std::clog << "wrong version...\n";
+		return;
+	}
+	if (size < PROTOCOL_BASE_SIZE) {
+		std::clog << "too small for this version!\n";
 		return;
 	}
 
-	const uint16_t request = ntohs(*((uint16_t *)(buffer)));
-	const uint64_t transid = *((uint64_t *)(buffer + 2));
+	const uint16_t request = ntohs(PLOST_REQUEST(buffer));
+	const uint64_t transid = PLOST_TRANSID(buffer);
 
 	char *const response_buffer = new char[1500];
 	int response_length = 0;
@@ -75,15 +96,46 @@ void process_request(const char *const buffer, const int size,
 	switch (request) {
 		case REQUEST_INITIATION:
 			std::clog << "Initiate, id = " << transid << std::endl;
-			*(uint16_t *)(response_buffer+0) = htons(REQUEST_INITIATED);
-			*(uint64_t *)(response_buffer+2) = transid;
-			response_length = 10;
+			PLOST_VERSION(response_buffer) = htons(version);
+			PLOST_REQUEST(response_buffer) = htons(REQUEST_INITIATED);
+			PLOST_TRANSID(response_buffer) = transid;
+			response_length = PROTOCOL_BASE_SIZE;
+			gTransactions[transid] = transactionInfo();
+			break;
+		case REQUEST_PING:
+			std::clog << "Ping, id = " << transid;
+			PLOST_VERSION(response_buffer) = htons(version);
+			PLOST_TRANSID(response_buffer) = transid;
+			response_length = PROTOCOL_BASE_SIZE;
+
+			if (!gTransactions.count(transid)) {
+				// unknown transaction. Server restart, timeout, etc.
+				PLOST_REQUEST(response_buffer) = htons(REQUEST_PONG_WHO);
+				std::clog << " DNE\n";
+			} else {
+				transactionInfo &tinfo = gTransactions[transid];
+				tinfo.last = time(NULL);
+				PLOST_REQUEST(response_buffer) = htons(REQUEST_PONG);
+				PLOST_RXCOUNT(response_buffer) = htons(++tinfo.count);
+				std::clog << ", count = " << tinfo.count << std::endl;
+			}
+			break;
+		case REQUEST_CLEANUP:
+			std::clog << "Clean up, id = " << transid;
+			PLOST_VERSION(response_buffer) = htons(version);
+			PLOST_REQUEST(response_buffer) = htons(REQUEST_CLEANED);
+			PLOST_TRANSID(response_buffer) = transid;
+			response_length = PROTOCOL_BASE_SIZE;
+			if (!gTransactions.erase(transid))
+				std::clog << " DNE";
+			std::clog << std::endl;
 			break;
 		default:
 			std::clog << "Unknown request, id = " << transid << std::endl;
-			*(uint16_t *)(response_buffer+0) = htons(REQUEST_UNKNOWN);
-			*(uint64_t *)(response_buffer+2) = transid;
-			response_length = 10;
+			PLOST_VERSION(response_buffer) = htons(version);
+			PLOST_REQUEST(response_buffer) = htons(REQUEST_UNKNOWN);
+			PLOST_TRANSID(response_buffer) = transid;
+			response_length = PROTOCOL_BASE_SIZE;
 			break;
 	}
 	if (response_length)
@@ -93,4 +145,15 @@ void process_request(const char *const buffer, const int size,
 
 
 	delete[] response_buffer;
+}
+
+void transaction_gc() {
+	const int max_transaction_lifetime = 60;
+	const int eol = time(NULL) - max_transaction_lifetime;
+	for(transactionMap::iterator i = gTransactions.begin();
+			i != gTransactions.end(); ++i)
+		if (i->second.last <= eol) {
+			std::clog << "Cleaning up id = " << i->first << std::endl;
+			gTransactions.erase(i);
+		}
 }
