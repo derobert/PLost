@@ -1,12 +1,13 @@
 #include "PLost.h"
 
-#include <sys/types.h>
-#include <sys/socket.h>
-#include <stdio.h>
-#include <netinet/in.h>
 #include <arpa/inet.h>
-#include <unistd.h>
+#include <netdb.h>
+#include <netinet/in.h>
+#include <stdio.h>
+#include <sys/socket.h>
+#include <sys/types.h>
 #include <time.h>
+#include <unistd.h>
 
 #include <iostream>
 #include <map>
@@ -26,18 +27,31 @@ transactionMap gTransactions;
 
 int main() {
 	int sock = socket(PF_INET6, SOCK_DGRAM, 0);
-	if (!sock) {
+	if (!sock)
 		perror("socket");
-		return 1;
-	}
 
 	sockaddr_in6 addr;
 	addr.sin6_family = AF_INET6;
 	addr.sin6_port = htons(1223);
 	addr.sin6_addr = in6addr_any;
 	if (bind(sock, (sockaddr*)&addr, sizeof(addr))) {
-		perror("bind");
-		return 1;
+		perror("bind IPv6");
+		std::clog << "What? No IPv6 support?! You must be stuck in 1998"
+			      << " or something...\n"
+				  << "Trying IPv4.\n";
+		close(sock);
+		sock = socket(PF_INET, SOCK_DGRAM, 0);
+		if (!sock) {
+			perror("socket");
+			std::clog << "In-ter-net, what's dat?\n";
+			return 1;
+		}
+		sockaddr_in addr = { AF_INET, htons(1223), INADDR_ANY };
+		if (bind(sock, (sockaddr*)&addr, sizeof(addr))) {
+			perror("bind IPv4");
+			std::clog << "In-ter-net, what's dat?\n";
+			return 1;
+		}
 	}
 
 	connection_loop(sock);
@@ -45,29 +59,35 @@ int main() {
 
 
 void connection_loop(const int sock) {
-	const int buffer_size = 1500, addr_buffer_size = 64;
+	const int buffer_size = 1500, addr_buffer_size = 128,
+	          service_buffer_size = 32, addr_size = 64;
+
 	char *const buffer = new char[buffer_size];
 	char *const addr_buffer = new char[addr_buffer_size];
+	char *const service_buffer = new char[service_buffer_size];
+	sockaddr *const remote_addr = (sockaddr *)new char[addr_size];
 
-	sockaddr_in6 remote_addr;
 	socklen_t remote_addr_len;
 	for (;;) { // only a signal will take this mess down...
+		remote_addr_len = addr_size;
 		int size = recvfrom(sock, buffer, buffer_size, MSG_NOSIGNAL,
-				(sockaddr*)&remote_addr, &remote_addr_len);
-		inet_ntop(AF_INET6, &remote_addr.sin6_addr, addr_buffer,
-				addr_buffer_size);
-		if (remote_addr_len != sizeof(remote_addr)) {
-			std::cerr << "Addr size is " << remote_addr_len
-				      << ", not " << sizeof(remote_addr) << "!\n";
-			continue;
+				remote_addr, &remote_addr_len);
+		if (size == -1) {
+			perror("recv");
 		}
-		std::clog << "Message from " << addr_buffer << ": ";
-		process_request(buffer, size, (sockaddr *)&remote_addr,
+		getnameinfo(remote_addr, remote_addr_len, addr_buffer,
+				addr_buffer_size, service_buffer, service_buffer_size,
+				NI_NUMERICHOST|NI_NUMERICSERV|NI_DGRAM);
+		std::clog << "Message from " << addr_buffer
+			      << " service " << service_buffer << ": ";
+		process_request(buffer, size, remote_addr,
 				remote_addr_len, sock);
 		transaction_gc();
 	}
 	
 	delete[] addr_buffer;
+	delete[] service_buffer;
+	delete[] remote_addr;
 	delete[] buffer;
 }
 
