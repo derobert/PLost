@@ -62,16 +62,16 @@ int main(int argc, char *argv[]) {
 
 	// Find who to connect to, in a protocol-independant manner. Oooh,
 	// yeah, IPv4 support. Now, if only the server supported IPv4...
-	const addrinfo hints = {
-		ai_flags:		0, 
-		ai_family:		PF_UNSPEC,
-		ai_socktype:	SOCK_DGRAM, 
-		ai_protocol:	0,
-		ai_addrlen:		0,
-		ai_addr:		NULL,
-		ai_canonname:	NULL,
-		ai_next:		NULL
-	};
+	addrinfo hints;
+	hints.ai_flags = 0; 
+	hints.ai_family =	PF_UNSPEC;
+	hints.ai_socktype = SOCK_DGRAM; 
+	hints.ai_protocol = 0;
+	hints.ai_addrlen = 0;
+	hints.ai_addr = NULL;
+	hints.ai_canonname = NULL;
+	hints.ai_next = NULL;
+						
 	addrinfo *info;
 	int err = getaddrinfo(argv[1], service, &hints, &info);
 	if (err) {

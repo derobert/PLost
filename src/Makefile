@@ -7,9 +7,9 @@ clean:
 	rm -f PLostd.o PLost.o
 
 PLostd: PLostd.o
-	$(CXX) $(LDFLAFGS) -o "$@" "$<"
+	$(CXX) $(LDFLAGS) -o "$@" "$<"
 PLost: PLost.o
-	$(CXX) $(LDFLAFGS) -o "$@" "$<"
+	$(CXX) $(LDFLAGS) -o "$@" "$<"
 
 PLostd.o: ../inc/PLost.h PLostd.cpp
 PLost.o: ../inc/PLost.h PLost.cpp
