@@ -47,8 +47,16 @@ transactionMap gTransactions;
 
 int main() {
 	int sock = socket(PF_INET6, SOCK_DGRAM, 0);
-	if (!sock)
+	if (!sock) {
 		perror("socket");
+		return 1;
+	}
+
+	int zero = 0;
+	if (setsockopt(sock, IPPROTO_IPV6, IPV6_V6ONLY, &zero, sizeof(zero))) {
+		perror("setsockopt IPV6_V6ONLY false");
+		return 1;
+	}
 
 	sockaddr_in6 addr;
 	addr.sin6_family = AF_INET6;
