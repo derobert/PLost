@@ -1,6 +1,6 @@
 /*
  * PLost - Determines packet loss in both upstream and downstream.
- * Copyright (C) 2002 Anthony DeRobertis
+ * Copyright (C) 2002, 2014 Anthony DeRobertis
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
