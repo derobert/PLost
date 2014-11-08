@@ -25,6 +25,7 @@
 #include <netdb.h>
 #include <netinet/in.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <sys/poll.h>
 #include <sys/socket.h>
 #include <sys/stat.h>
@@ -43,7 +44,7 @@ unsigned long long microtime();
 
 int main(int argc, char *argv[]) {
 	// Getopt?! Nah...
-	char *service = NULL;
+	const char *service = NULL;
 	short port = 0;
 	if (argc == 0) {
 		std::clog << "argv is fubar. No cookie for you!.\n";
