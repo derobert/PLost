@@ -1,7 +1,7 @@
 PLost
 =====
 
-PLost is like ping excpet that by using a custom server, it can tell you
+PLost is like ping except that by using a custom server, it can tell you
 whether the packets were lost on their way to the server or on their way
 back.
 

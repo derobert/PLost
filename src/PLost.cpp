@@ -39,7 +39,6 @@
 bool run_test(int sock);
 bool initiate(int sock, uint64_t &);
 bool measure(int sock, uint64_t);
-bool cleanup(int sock, uint64_t);
 unsigned long long microtime();
 
 int main(int argc, char *argv[]) {
@@ -117,8 +116,8 @@ bool run_test(int sock) {
 		return false;
 	if (!measure(sock, transid))
 		return false;
-	if (!cleanup(sock, transid))
-		return false;
+
+	return true;
 }
 
 
@@ -359,8 +358,6 @@ bool measure(int sock, uint64_t transid) {
 	
 	return true;
 }
-
-bool cleanup(int sock, uint64_t) {}
 
 unsigned long long microtime() {
 	timeval tm;
